@@ -1,0 +1,128 @@
+.weather-clock-panel {
+  position: fixed;
+  top: 80px;
+  right: 30px;
+  width: 200px;
+  background: rgba(0, 5, 15, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(0, 225, 255, 0.35);
+  z-index: 200;
+  font-family: 'Rajdhani', sans-serif;
+  overflow: hidden;
+
+  /* Sci-fi clipped corners (opposite of StatusPanel) */
+  clip-path: polygon(
+    18px 0,
+    100% 0,
+    100% calc(100% - 18px),
+    calc(100% - 18px) 100%,
+    0 100%,
+    0 18px
+  );
+
+  box-shadow:
+    0 0 20px rgba(0, 225, 255, 0.08),
+    inset 0 0 30px rgba(0, 225, 255, 0.03);
+}
+
+.wc-header {
+  padding: 8px 14px;
+  background: rgba(0, 225, 255, 0.06);
+  border-bottom: 1px solid rgba(0, 225, 255, 0.15);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wc-country {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #00e1ff;
+}
+
+.flag-icon {
+  font-size: 14px;
+}
+
+.wc-body {
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.digital-clock {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 20px;
+  color: #ffffff;
+  text-shadow: 0 0 15px rgba(0, 225, 255, 0.4);
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.date-display {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 1px;
+  margin-top: -5px;
+}
+
+.weather-info {
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.weather-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.weather-temp {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 18px;
+  color: #00ff88;
+}
+
+.weather-desc {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.weather-details {
+  text-align: right;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  line-height: 1.4;
+}
+
+/* Corner accent glow lines */
+.weather-clock-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 18px; height: 18px;
+  border-top: 2px solid #00e1ff;
+  border-left: 2px solid #00e1ff;
+}
+
+.weather-clock-panel::after {
+  content: '';
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 18px; height: 18px;
+  border-bottom: 2px solid rgba(0, 225, 255, 0.4);
+  border-right: 2px solid rgba(0, 225, 255, 0.4);
+}

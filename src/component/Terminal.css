@@ -1,0 +1,210 @@
+.jarvis-terminal-wrapper {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 400px;
+  height: 450px;
+  background: rgba(0, 5, 15, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 225, 255, 0.4);
+  border-radius: 10px;
+  z-index: 100;
+  box-shadow: 0 0 30px rgba(0, 225, 255, 0.1), inset 0 0 40px rgba(0, 225, 255, 0.03);
+  font-family: 'Rajdhani', monospace;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.terminal-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  z-index: 110;
+  /* subtle visual indicator */
+  border-top: 2px solid rgba(0, 225, 255, 0.3);
+  border-left: 2px solid rgba(0, 225, 255, 0.3);
+  border-top-left-radius: 10px;
+}
+
+/* ---- Top Bar ---- */
+.terminal-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(0, 225, 255, 0.07);
+  border-bottom: 1px solid rgba(0, 225, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.terminal-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #00e1ff;
+  text-shadow: 0 0 8px rgba(0, 225, 255, 0.5);
+}
+
+.terminal-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---- Status Badge ---- */
+.status-badge {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1px solid;
+  transition: all 0.3s;
+}
+
+.status-badge.idle {
+  color: rgba(255,255,255,0.3);
+  border-color: rgba(255,255,255,0.15);
+}
+
+.status-badge.listening {
+  color: #00ff88;
+  border-color: #00ff88;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+  animation: pulse-green 1.5s infinite;
+}
+
+.status-badge.thinking {
+  color: #ffaa00;
+  border-color: #ffaa00;
+  box-shadow: 0 0 8px rgba(255, 170, 0, 0.3);
+  animation: pulse-orange 1s infinite;
+}
+
+.status-badge.speaking {
+  color: #00e1ff;
+  border-color: #00e1ff;
+  box-shadow: 0 0 8px rgba(0, 225, 255, 0.4);
+  animation: pulse-blue 0.8s infinite;
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
+}
+@keyframes pulse-orange {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+}
+@keyframes pulse-blue {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.6; }
+}
+
+/* ---- Mic Button ---- */
+.mic-btn {
+  background: rgba(0, 225, 255, 0.1);
+  border: 1px solid rgba(0, 225, 255, 0.4);
+  color: #00e1ff;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+}
+
+.mic-btn:hover {
+  background: rgba(0, 225, 255, 0.25);
+  box-shadow: 0 0 10px rgba(0, 225, 255, 0.3);
+}
+
+.mic-btn.active {
+  background: rgba(255, 0, 85, 0.2);
+  border-color: rgba(255, 0, 85, 0.6);
+  color: #ff3366;
+}
+
+/* ---- Message Body ---- */
+.terminal-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.terminal-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.terminal-body::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.2);
+}
+
+.terminal-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 225, 255, 0.3);
+  border-radius: 2px;
+}
+
+/* ---- Message Rows ---- */
+.msg-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.msg-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  padding-top: 3px;
+  min-width: 58px;
+  flex-shrink: 0;
+}
+
+.msg-text {
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: 0.5px;
+  word-break: break-word;
+}
+
+/* User messages */
+.msg-row.user .msg-label { color: rgba(255,255,255,0.4); }
+.msg-row.user .msg-text { color: rgba(255, 255, 255, 0.85); }
+
+/* Jarvis messages */
+.msg-row.jarvis .msg-label { color: #00e1ff; }
+.msg-row.jarvis .msg-text {
+  color: #00e1ff;
+  text-shadow: 0 0 8px rgba(0, 225, 255, 0.3);
+}
+
+/* System messages */
+.msg-row.system .msg-label { color: rgba(255,170,0,0.6); }
+.msg-row.system .msg-text { color: rgba(255,255,255,0.3); font-style: italic; }
+
+/* Blinking cursor */
+.cursor-blink {
+  animation: blink 0.7s infinite;
+  color: #00e1ff;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
