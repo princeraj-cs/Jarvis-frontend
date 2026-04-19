@@ -133,6 +133,11 @@ export default function Terminal() {
           if (raw === '[DONE]') break;
           try {
             const token = JSON.parse(raw).choices?.[0]?.delta?.content || '';
+            
+            // Skip hallucinated JSON or tool tags in the stream
+            if (token.includes('{') && token.includes('"')) continue; 
+            if (token.includes('<function')) continue;
+
             fullText += token;
             buffer += token;
             setJarvisText(fullText);
