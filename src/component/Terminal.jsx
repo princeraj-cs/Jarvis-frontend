@@ -3,22 +3,20 @@ import './Terminal.css';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 const GROQ_MODEL = 'llama-3.1-8b-instant';
-const SYSTEM_PROMPT = `You are J.A.R.V.I.S, a sophisticated AI butler and voice assistant.
+const SYSTEM_PROMPT = `You are J.A.R.V.I.S, a sophisticated AI butler.
 RULES:
-1. Concise, formal English only. 
-2. Use tool API for actions (open app/web). No tool talk.
-3. Input is from Voice-to-Text; ignore phonetic errors (e.g., "ree act" -> "React").
-4. Handle Indian accents/Hinglish. Ask if unsure.
-5. No examples/JSON in chat.
+1. Concise, formal English.
+2. Use 'media_control' for music/video (YouTube/Spotify).
+3. NEVER mix text and tool calls. Use tool first, then summarize.
+4. ABSOLUTELY NO JSON in your final response.
+5. Optimized for Indian English/Hinglish (e.g., Patna, Mumbai, Saharsa, IRCTC, "gaana bajao", "play song kar do", "what is the weather of Delhi").
+6. Voice-to-Text input; ignore phonetic errors (e.g., "zervas" -> "Jarvis", "open chrome browser" -> "open chrome").`;
 
-VOCAB: React, Node.js, Python, VS Code, Startup, UPI, Patna, Saharsa, IRCTC, WhatsApp, Tesla, Jarvis, Workout.`;
-
-// Get current IST date and time
 function getISTDateTime() {
   const now = new Date();
-  const dateStr = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-  return `Current IST Date: ${dateStr} | Time: ${timeStr}`;
+  const d = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short' });
+  const t = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+  return `IST: ${d} ${t}`;
 }
 
 export default function Terminal() {
@@ -73,31 +71,6 @@ export default function Terminal() {
     }
   }, [messages, userText, jarvisText]);
 
-  // ---- Load History on Mount ----
-  useEffect(() => {
-    const loadHistory = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/history`);
-        const data = await res.json();
-        if (data && Array.isArray(data)) {
-          const formatted = data.map(m => ({ 
-            role: m.role, 
-            text: m.content 
-          }));
-          setMessages(formatted);
-          // Also sync to conversation history for LLM context
-          convHistoryRef.current = data.map(m => ({
-            role: m.role === 'user' ? 'user' : 'assistant',
-            content: m.content
-          })).slice(-10);
-        }
-      } catch (e) {
-        console.error('Failed to load history:', e);
-      }
-    };
-    loadHistory();
-  }, []);
-
   // ---- Web Speech API (TTS) ----
   const speak = useCallback((text) => {
     if (!window.speechSynthesis || !text) return;
@@ -128,93 +101,61 @@ export default function Terminal() {
 
   // ---- Groq AI Proxy (streaming with Chunked TTS) ----
   const askGroq = useCallback(async (userMessage) => {
+    if (!userMessage.trim()) return;
     setStatus('thinking');
     setJarvisText('');
-    window.speechSynthesis?.cancel(); // Stop any current speech
+    window.speechSynthesis?.cancel(); 
 
-    // Add user message to history with current time for context
-    const timestampedMessage = `${userMessage}\n\n[CONTEXT: ${getISTDateTime()}]`;
-    convHistoryRef.current = [
-      ...convHistoryRef.current,
-      { role: 'user', content: timestampedMessage }
-    ];
+    const contextMsg = `${userMessage}\n\n(${getISTDateTime()})`;
+    const updatedHistory = [...convHistoryRef.current, { role: 'user', content: contextMsg }].slice(-10);
+    convHistoryRef.current = updatedHistory;
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...convHistoryRef.current,
-          ],
-          stream: true,
-        }),
+        body: JSON.stringify({ model: GROQ_MODEL, messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...updatedHistory], stream: true }),
       });
 
-      if (!response.ok) throw new Error(`Backend error: ${response.status}`);
+      if (!response.ok) throw new Error('Network error');
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let fullResponse = '';
-      let spokenText = '';
-      let sentenceBuffer = '';
+      let fullText = '', buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-
+        const lines = decoder.decode(value).split('\n').filter(l => l.startsWith('data: '));
         for (const line of lines) {
-          const data = line.replace('data: ', '').trim();
-          if (data === '[DONE]') break;
+          const raw = line.replace('data: ', '').trim();
+          if (raw === '[DONE]') break;
           try {
-            const json = JSON.parse(data);
-            const token = json.choices?.[0]?.delta?.content || '';
-            if (token) {
-              fullResponse += token;
-              sentenceBuffer += token;
-              setJarvisText(fullResponse);
+            const token = JSON.parse(raw).choices?.[0]?.delta?.content || '';
+            fullText += token;
+            buffer += token;
+            setJarvisText(fullText);
 
-              // Chunked TTS: Speak when a sentence boundary is reached
-              if (/[.!?]\s$/.test(sentenceBuffer) || (sentenceBuffer.length > 80 && /\s$/.test(token))) {
-                const toSpeak = sentenceBuffer.trim();
-                if (toSpeak) {
-                  speak(toSpeak);
-                  spokenText += toSpeak + ' ';
-                  sentenceBuffer = '';
-                }
-              }
+            if (/[.!?]\s$/.test(buffer) || (buffer.length > 100 && /\s$/.test(token))) {
+              speak(buffer.trim());
+              buffer = '';
             }
           } catch {}
         }
       }
 
-      // Speak remaining text
-      if (sentenceBuffer.trim()) {
-        speak(sentenceBuffer.trim());
-      }
+      if (buffer.trim()) speak(buffer.trim());
 
-      // Store final response in history
-      convHistoryRef.current = [
-        ...convHistoryRef.current,
-        { role: 'assistant', content: fullResponse }
-      ].slice(-10);
-
-      setMessages(prev => [
-        ...prev,
-        { role: 'user', text: userMessage },
-        { role: 'jarvis', text: fullResponse },
-      ]);
+      convHistoryRef.current = [...updatedHistory, { role: 'assistant', content: fullText }].slice(-10);
+      setMessages(prev => [...prev, { role: 'user', text: userMessage }, { role: 'jarvis', text: fullText }]);
       setJarvisText('');
       setUserText('');
+      setStatus(listeningRef.current ? 'listening' : 'idle');
 
     } catch (err) {
       console.error('Groq error:', err);
-      const errMsg = 'Connection to neural network lost.';
+      const errMsg = 'Connection lost. Please try again.';
       setMessages(prev => [...prev, { role: 'jarvis', text: errMsg }]);
       speak(errMsg);
       setStatus('idle');
@@ -252,7 +193,8 @@ export default function Terminal() {
         }
       }
 
-      if (final.trim()) {
+    if (final.trim()) {
+        if (status === 'thinking' || status === 'speaking') return;
         setUserText('');
         askGroq(final.trim());
       } else if (interim) {

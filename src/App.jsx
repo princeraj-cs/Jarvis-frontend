@@ -4,6 +4,7 @@ import BlobScene from './component/blob.jsx'
 import Terminal from './component/Terminal'
 import StatusPanel from './component/StatusPanel'
 import WeatherClock from './component/WeatherClock'
+import NetworkGraph from './component/NetworkGraph'
 
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
       <WeatherClock />
       <BlobScene config={blobConfig} />
       <Terminal />
+      <NetworkGraph />
     </>
   )
 }

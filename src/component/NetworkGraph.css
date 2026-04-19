@@ -1,0 +1,29 @@
+.network-graph-container {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 300px;
+  pointer-events: auto;
+  z-index: 5;
+  border-left: 2px solid rgba(0, 187, 255, 0.3);
+  padding: 10px;
+  background: linear-gradient(to top, rgba(0, 187, 255, 0.05), transparent);
+  display: flex;
+  flex-direction: column;
+}
+
+.network-graph-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px;
+  color: #00bbff;
+  letter-spacing: 2px;
+  margin-bottom: 8px; /* Spacing between label and bars */
+  opacity: 0.8;
+  text-shadow: 0 0 5px rgba(0, 187, 255, 0.5);
+}
+
+.network-graph-canvas {
+  width: 100%;
+  height: 80px; /* Smaller height for the bar graph */
+  filter: drop-shadow(0 0 5px rgba(0, 187, 255, 0.2));
+}
