@@ -96,10 +96,4 @@ Contributions are welcome!
 
 ---
 
-## 📄 License
-
-Add your preferred license here (MIT, Apache-2.0, etc.) 📝
-
----
-
 ### 💡 Made with code, creativity, and caffeine.
