@@ -19,16 +19,22 @@ function getISTDateTime() {
   return `IST: ${d} ${t}`;
 }
 
-export default function Terminal() {
+export default function Terminal({ onStatusChange }) {
   const [messages, setMessages] = useState([]);       
   const [userText, setUserText] = useState('');       
   const [jarvisText, setJarvisText] = useState('');   
-  const [status, setStatus] = useState('idle');       
   const recognitionRef = useRef(null);
   const listeningRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const convHistoryRef = useRef([]);                  
   const messagesEndRef = useRef(null);               
+
+  // Local helper to track status for internal logic if needed
+  const [localStatus, setLocalStatus] = useState('idle');
+  const setStatus = (s) => {
+    setLocalStatus(s);
+    if (onStatusChange) onStatusChange(s);
+  };
 
   const [size, setSize] = useState({ width: 440, height: 180 });
   const [isResizing, setIsResizing] = useState(false);
@@ -107,42 +113,66 @@ export default function Terminal() {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
-      if (!response.ok) throw new Error('Network error');
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Network error');
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let fullText = '', buffer = '', isHallucinating = false;
+      let fullText = '', buffer = '', ttsBuffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const lines = decoder.decode(value).split('\n').filter(l => l.startsWith('data: '));
-        for (const line of lines) {
+        
+        // Add new chunk to buffer and split by SSE 'data: ' prefix
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n');
+        
+        // Keep the last part in buffer if it's incomplete
+        buffer = parts.pop() || '';
+
+        for (const line of parts) {
           const raw = line.replace('data: ', '').trim();
-          if (raw === '[DONE]') break;
+          if (!raw || raw === '[DONE]') continue;
+          
           try {
-            const token = JSON.parse(raw).choices?.[0]?.delta?.content || '';
-            if (token.includes('{') || token.includes('<')) isHallucinating = true;
-            if (isHallucinating) {
-              if (/[.!?]\s$/.test(token) || (token.length > 2 && !/[{<"':]/.test(token))) isHallucinating = false;
-              if (isHallucinating) continue; 
+            const json = JSON.parse(raw);
+            if (json.error) throw new Error(json.error);
+            
+            let token = json.choices?.[0]?.delta?.content || '';
+            
+            // Surgical Hallucination Filter: 
+            // If the AI starts outputting JSON-like tags/braces, skip them
+            if (token.includes('{') || token.includes('<') || token.includes('"platform":')) {
+               token = token.replace(/<.*?>|{.*?}|".*?":/g, '');
             }
-            fullText += token;
-            buffer += token;
-            setJarvisText(fullText);
-            if (/[.!?]\s$/.test(buffer) || (buffer.length > 80 && /[.?!]/.test(token))) {
-              speak(buffer.trim());
-              buffer = '';
+
+            if (token) {
+              fullText += token;
+              ttsBuffer += token;
+              setJarvisText(fullText);
+
+              // TTS Processing: Speak in natural chunks
+              if (/[.!?]\s$/.test(ttsBuffer) || (ttsBuffer.length > 80 && /[.?!]/.test(token))) {
+                speak(ttsBuffer.trim());
+                ttsBuffer = '';
+              }
             }
-          } catch {}
+          } catch (e) {
+            console.warn('Stream parse error:', e.message, raw);
+          }
         }
       }
-      if (buffer.trim()) speak(buffer.trim());
+      
+      if (ttsBuffer.trim()) speak(ttsBuffer.trim());
       setMessages(prev => [...prev, { role: 'jarvis', text: fullText }]);
       convHistoryRef.current = [...updatedHistory, { role: 'assistant', content: fullText }].slice(-10);
     } catch (err) {
       console.error('Groq error:', err);
-      const errMsg = err.name === 'AbortError' ? 'Request timed out.' : 'Connection lost.';
+      const errMsg = err.name === 'AbortError' ? 'Request timed out.' : (err.message || 'Connection lost.');
       setMessages(prev => [...prev, { role: 'jarvis', text: errMsg }]);
       speak(errMsg);
     } finally {
@@ -159,29 +189,77 @@ export default function Terminal() {
     recognition.interimResults = true;
     recognition.lang = 'en-IN';
     recognition.onstart = () => setStatus('listening');
+    recognition.onsoundstart = () => { if (!isSpeakingRef.current) setStatus('listening'); };
+    recognition.onsoundend = () => { if (!isSpeakingRef.current && status === 'listening') setStatus('idle'); };
+    
+    let silenceTimer;
     recognition.onresult = (event) => {
       if (isSpeakingRef.current) return;
+      
       let interim = '', final = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) final += event.results[i][0].transcript;
         else interim += event.results[i][0].transcript;
       }
-      const current = (final || interim).trim();
-      if (current) setUserText(current);
-      if (final.trim()) {
-        const text = final.trim();
-        const wakeWords = ['jarvis', 'zervas', 'service', 'hi jarvis', 'hello jarvis'];
-        if (wakeWords.some(w => text.toLowerCase().includes(w))) askGroq(text);
-        else setTimeout(() => setUserText(''), 2000);
+
+      const currentText = (final || interim).trim();
+      if (currentText) {
+        setUserText(currentText);
+        setStatus('listening');
+        
+        // Reset silence timer on every sound
+        clearTimeout(silenceTimer);
+        
+        const textLow = currentText.toLowerCase();
+        const wakeWords = ['jarvis', 'zervas', 'service', 'hi jarvis', 'hello jarvis', 'okay jarvis'];
+        const hasWakeWord = wakeWords.some(w => textLow.includes(w));
+
+        // If wake word is heard in interim, we can already prepare UI
+        if (hasWakeWord) setStatus('thinking');
+
+        // If it's final OR we have a wake word and a long-enough pause
+        if (event.results[event.results.length - 1].isFinal) {
+           if (hasWakeWord || listeningRef.current) {
+             // Extract command: remove wake word if present to clean up prompt
+             let command = currentText;
+             wakeWords.forEach(w => {
+               const regex = new RegExp(`^.*?${w}`, 'i');
+               command = command.replace(regex, '').trim();
+             });
+             
+             // If command is empty after removing wake word, maybe they just said "Jarvis"
+             if (!command && hasWakeWord) command = "Yes master?"; 
+             
+             if (command) {
+               askGroq(currentText); // Send full text for context, but we know it's a command
+               setUserText('');
+             }
+           } else {
+             // Not active and no wake word, just clear after a bit
+             setTimeout(() => setUserText(''), 2000);
+           }
+        } else if (hasWakeWord) {
+          // If we heard a wake word in interim, start a short timer to auto-trigger 
+          // if the browser is slow to mark it as 'final'
+          silenceTimer = setTimeout(() => {
+            if (currentText.length > 5) {
+              askGroq(currentText);
+              setUserText('');
+            }
+          }, 2000);
+        }
       }
     };
+
     recognition.onend = () => {
       if (listeningRef.current) {
         try { 
           recognition.start(); 
           setStatus(prev => (prev === 'thinking' || prev === 'speaking') ? prev : 'listening');
         } catch {}
-      } else setStatus('idle');
+      } else {
+        setStatus('idle');
+      }
     };
     recognitionRef.current = recognition;
     return () => {
@@ -207,7 +285,7 @@ export default function Terminal() {
     }
   };
 
-  const statusLabel = { idle: 'OFFLINE', listening: 'LISTENING', thinking: 'PROCESSING', speaking: 'RESPONDING' }[status];
+  const statusLabel = { idle: 'OFFLINE', listening: 'LISTENING', thinking: 'PROCESSING', speaking: 'RESPONDING' }[localStatus];
 
   return (
     <div className="jarvis-terminal-wrapper" style={{ width: size.width, height: size.height }}>
@@ -215,7 +293,7 @@ export default function Terminal() {
       <div className="terminal-topbar">
         <span className="terminal-title">J.A.R.V.I.S INTERFACE</span>
         <div className="terminal-controls">
-          <span className={`status-badge ${status}`}>{statusLabel}</span>
+          <span className={`status-badge ${localStatus}`}>{statusLabel}</span>
           <button className={`mic-btn ${listeningRef.current ? 'active' : ''}`} onClick={toggleListening}>
             {listeningRef.current ? '⏹ STOP' : '🎙 ACTIVATE'}
           </button>

@@ -8,6 +8,7 @@ import NetworkGraph from './component/NetworkGraph'
 
 
 function App() {
+  const [status, setStatus] = useState('idle'); // idle | listening | thinking | speaking
   const [blobConfig, setBlobConfig] = useState({
     size: 470,
     colorTheme: "#00bbff",
@@ -17,11 +18,11 @@ function App() {
   return (
     <>
       <Navbar config={blobConfig} setConfig={setBlobConfig} />
-      <StatusPanel />
+      <StatusPanel status={status} />
       <WeatherClock />
-      <BlobScene config={blobConfig} />
-      <Terminal />
-      <NetworkGraph />
+      <BlobScene config={blobConfig} status={status} />
+      <Terminal onStatusChange={setStatus} />
+      <NetworkGraph status={status} />
     </>
   )
 }

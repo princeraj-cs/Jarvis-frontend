@@ -4,8 +4,9 @@ import './StatusPanel.css';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
 export default function StatusPanel() {
-  const [micStatus, setMicStatus] = useState('checking');   // checking | granted | denied
+  const [micStatus, setMicStatus] = useState('checking');
   const [speechStatus, setSpeechStatus] = useState('offline');
+  const [systemStats, setSystemStats] = useState({ cpu: 0, memory: 0 });
   const [backendHealth, setBackendHealth] = useState({
     status: 'checking',
     groq: false,
@@ -23,21 +24,15 @@ export default function StatusPanel() {
 
   useEffect(() => {
     if (!isResizing) return;
-
     const onMouseMove = (e) => {
-      const newWidth = e.clientX - 30; // 30 is the 'left' offset
-      const newHeight = e.clientY - 80; // 80 is the 'top' offset
-      
+      const newWidth = e.clientX - 30;
+      const newHeight = e.clientY - 80;
       setSize({
         width: Math.max(200, newWidth),
         height: Math.max(150, newHeight)
       });
     };
-
-    const onMouseUp = () => {
-      setIsResizing(false);
-    };
-
+    const onMouseUp = () => setIsResizing(false);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     return () => {
@@ -62,11 +57,22 @@ export default function StatusPanel() {
 
   // Check speech synthesis availability
   useEffect(() => {
-    if (window.speechSynthesis) {
-      setSpeechStatus('online');
-    } else {
-      setSpeechStatus('offline');
-    }
+    if (window.speechSynthesis) setSpeechStatus('online');
+    else setSpeechStatus('offline');
+  }, []);
+
+  // Fetch system telemetry
+  useEffect(() => {
+    const fetchSystem = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/system`);
+        const data = await res.json();
+        setSystemStats(data);
+      } catch (err) {}
+    };
+    fetchSystem();
+    const interval = setInterval(fetchSystem, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   // Check backend health
@@ -98,21 +104,27 @@ export default function StatusPanel() {
 
   const statuses = [
     {
-      id: 'system',
-      label: 'CORE SYSTEM',
-      value: 'ONLINE',
-      state: 'online',
+      id: 'cpu',
+      label: 'CPU USAGE',
+      value: `${systemStats.cpu}%`,
+      state: systemStats.cpu > 80 ? 'offline' : systemStats.cpu > 50 ? 'warning' : 'online',
+    },
+    {
+      id: 'mem',
+      label: 'MEMORY',
+      value: `${systemStats.memory}%`,
+      state: systemStats.memory > 85 ? 'offline' : systemStats.memory > 70 ? 'warning' : 'online',
     },
     {
       id: 'backend',
-      label: 'BACKEND SERVER',
-      value: backendHealth.status === 'online' ? 'CONNECTED' : backendHealth.status === 'offline' ? 'DISCONNECTED' : 'CHECKING',
-      state: backendHealth.status === 'online' ? 'online' : backendHealth.status === 'offline' ? 'offline' : 'warning',
+      label: 'BACKEND',
+      value: backendHealth.status === 'online' ? 'CONNECTED' : 'DISCONNECTED',
+      state: backendHealth.status === 'online' ? 'online' : 'offline',
     },
     {
       id: 'mic',
       label: 'MICROPHONE',
-      value: micStatus === 'granted' ? 'PERMITTED' : micStatus === 'denied' ? 'BLOCKED' : micStatus === 'checking' ? 'CHECKING' : 'PROMPT',
+      value: micStatus === 'granted' ? 'ACTIVE' : micStatus === 'denied' ? 'BLOCKED' : 'READY',
       state: micStatus === 'granted' ? 'online' : micStatus === 'denied' ? 'offline' : 'warning',
     },
     {
@@ -120,12 +132,6 @@ export default function StatusPanel() {
       label: 'GROQ AI',
       value: backendHealth.groq ? 'ACTIVE' : 'INACTIVE',
       state: backendHealth.groq ? 'online' : 'offline',
-    },
-    {
-      id: 'news',
-      label: 'NEWS API',
-      value: backendHealth.news ? 'ACTIVE' : 'INACTIVE',
-      state: backendHealth.news ? 'online' : 'offline',
     },
     {
       id: 'weather',
@@ -136,7 +142,7 @@ export default function StatusPanel() {
     {
       id: 'speech',
       label: 'SPEECH ENGINE',
-      value: speechStatus === 'online' ? 'ACTIVE' : 'UNAVAILABLE',
+      value: speechStatus === 'online' ? 'ACTIVE' : 'OFFLINE',
       state: speechStatus === 'online' ? 'online' : 'offline',
     },
   ];

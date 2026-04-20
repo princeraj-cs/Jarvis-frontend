@@ -1,8 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import './NetworkGraph.css';
 
-const NetworkGraph = () => {
+const NetworkGraph = ({ status }) => {
   const canvasRef = useRef(null);
+  const statusRef = useRef(status || 'idle');
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,12 +33,24 @@ const NetworkGraph = () => {
         this.x = index * (this.width + 2);
         this.targetHeight = Math.random() * canvas.height;
         this.currentHeight = 0;
-        this.speed = 0.05 + Math.random() * 0.1;
+        this.baseSpeed = 0.05 + Math.random() * 0.1;
       }
 
-      update() {
+      update(status) {
+        let speed = this.baseSpeed;
+        let jitter = 0.95;
+
+        if (status === 'thinking') {
+          speed *= 3.0; // Fast processing
+          jitter = 0.7;  // More frequent updates
+        } else if (status === 'speaking') {
+          speed *= 1.5;
+        } else if (status === 'listening') {
+          speed *= 0.8;
+        }
+
         // Natural fluctuation
-        if (Math.random() > 0.95) {
+        if (Math.random() > jitter) {
           this.targetHeight = Math.random() * canvas.height;
         }
 
@@ -47,7 +64,7 @@ const NetworkGraph = () => {
           }
         }
 
-        this.currentHeight += (this.targetHeight - this.currentHeight) * this.speed;
+        this.currentHeight += (this.targetHeight - this.currentHeight) * speed;
       }
 
       draw() {
@@ -69,8 +86,9 @@ const NetworkGraph = () => {
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const currentStatus = statusRef.current;
       bars.forEach(bar => {
-        bar.update();
+        bar.update(currentStatus);
         bar.draw();
       });
       animationFrameId = requestAnimationFrame(animate);

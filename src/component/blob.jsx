@@ -4,10 +4,15 @@ import * as THREE from "three";
 export default function BlobScene({ config }) {
   const mountRef = useRef(null);
   const configRef = useRef(config || { size: 350, colorTheme: "#00bbff", intensity: 1.0 });
+  const statusRef = useRef(status || 'idle');
 
   useEffect(() => {
     if (config) configRef.current = config;
   }, [config]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -342,17 +347,27 @@ export default function BlobScene({ config }) {
 
       const t = clock.getElapsedTime();
       const cfg = configRef.current;
+      const currentStatus = statusRef.current;
 
       // mic read
+      let level = 0;
       if (analyser && micArray) {
         analyser.getByteFrequencyData(micArray);
-
         let sum = 0;
         for (let i = 0; i < micArray.length; i++) sum += micArray[i];
-
-        const level = sum / micArray.length / 255;
-        micStrength += (level - micStrength) * 0.08;
+        level = sum / micArray.length / 255;
       }
+
+      // SYNC: If JARVIS is speaking, simulate voice activity for the blob
+      if (currentStatus === 'speaking') {
+        // Create a rhythmic pulse that feels like speech
+        level = Math.max(level, 0.15 + Math.sin(t * 12) * 0.1);
+      } else if (currentStatus === 'thinking') {
+        // Subtle "processing" hum
+        level = Math.max(level, 0.05 + Math.sin(t * 20) * 0.02);
+      }
+
+      micStrength += (level - micStrength) * 0.12;
 
       // Smooth wave effect
       currentWave += (targetWave - currentWave) * 0.1;
@@ -382,7 +397,7 @@ export default function BlobScene({ config }) {
       plasmaMat.uniforms.uTime.value = t * params.timeScale;
       plasmaMat.uniforms.uMic.value = micStrength * intensity;
 
-      const scale = 1 + (micStrength * 0.25 * intensity) + (currentWave * 0.05);
+      const scale = 1 + (micStrength * 0.3 * intensity) + (currentWave * 0.05);
       mainGroup.scale.set(scale, scale, scale);
 
       plasma.rotation.y = t * 0.08 + (currentWave * 0.5); // spin slightly faster on hover
